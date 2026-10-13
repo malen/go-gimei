@@ -1,16 +1,17 @@
 package gimei
 
 import (
+	cryptorand "crypto/rand"
 	"embed"
+	"encoding/binary"
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"strings"
 	"sync"
-	"time"
 
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"gopkg.in/yaml.v2"
+	"gopkg.in/yaml.v3"
 )
 
 var (
@@ -23,8 +24,6 @@ var (
 	onceName    sync.Once
 	onceAddress sync.Once
 	oncePostal  sync.Once
-	r           *rand.Rand
-	mu          sync.Mutex
 
 	lastNameIndex        [4]map[string]Item
 	maleFirstNameIndex   [4]map[string]Item
@@ -36,6 +35,10 @@ var (
 // Item take four figure for japanese. Kanji/Hiragana/Katakana/Romaji.
 // It's not only the difference of sounds, it just letters.
 type Item []string
+
+func cloneItem(item Item) Item {
+	return append(Item(nil), item...)
+}
 
 // String implement Stringer
 func (i Item) String() string {
@@ -104,13 +107,38 @@ type Name struct {
 	Sex   Sex
 }
 
-func init() {
-	r = rand.New(rand.NewSource(time.Now().UnixNano()))
+// Gimei generates names, addresses, and postal codes using an instance-local
+// random number generator. A Gimei is safe for concurrent use, but must not be
+// copied after first use.
+type Gimei struct {
+	mu sync.Mutex
+	r  *rand.Rand
 }
 
-// SetRandom set a pointer to rand.Rand that uses to generate random values.
-func SetRandom(rnd *rand.Rand) {
-	r = rnd
+// New returns a Gimei that uses rnd as its random number generator.
+// rnd must not be nil and must not be used outside the returned Gimei.
+func New(rnd *rand.Rand) *Gimei {
+	if rnd == nil {
+		panic("gimei: nil random number generator")
+	}
+	return &Gimei{r: rnd}
+}
+
+// NewWithSeed returns a Gimei backed by PCG, using the same seed convention as
+// gofakeit: a non-zero seed initializes PCG(seed, seed), while zero requests a
+// cryptographically random seed.
+func NewWithSeed(seed uint64) *Gimei {
+	if seed == 0 {
+		var seeds [16]byte
+		if _, err := cryptorand.Read(seeds[:]); err != nil {
+			panic(fmt.Errorf("gimei: generate random seed: %w", err))
+		}
+		return New(rand.New(rand.NewPCG(
+			binary.LittleEndian.Uint64(seeds[:8]),
+			binary.LittleEndian.Uint64(seeds[8:]),
+		)))
+	}
+	return New(rand.New(rand.NewPCG(seed, seed)))
 }
 
 func loadNames() {
@@ -124,7 +152,7 @@ func loadNames() {
 }
 
 func buildNameIndex() {
-	for i := 0; i < 4; i++ {
+	for i := range 4 {
 		lastNameIndex[i] = make(map[string]Item, len(names.LastName))
 		for _, item := range names.LastName {
 			if i < len(item) {
@@ -199,125 +227,128 @@ func (n *Name) IsFemale() bool {
 	return n.Sex == Female
 }
 
-// NewName return new instance of person.
-func NewName() *Name {
-	mu.Lock()
-	defer mu.Unlock()
+// NewName returns a new person.
+func (g *Gimei) NewName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
+	return g.newName()
+}
+
+func (g *Gimei) newName() *Name {
 	onceName.Do(loadNames)
-	if r.Intn(2) == 0 {
+	if g.r.IntN(2) == 0 {
 		return &Name{
-			First: names.FirstName.Male[r.Intn(len(names.FirstName.Male))],
-			Last:  names.LastName[r.Intn(len(names.LastName))],
+			First: cloneItem(names.FirstName.Male[g.r.IntN(len(names.FirstName.Male))]),
+			Last:  cloneItem(names.LastName[g.r.IntN(len(names.LastName))]),
 			Sex:   Male,
 		}
-	} else {
-		return &Name{
-			First: names.FirstName.Female[r.Intn(len(names.FirstName.Female))],
-			Last:  names.LastName[r.Intn(len(names.LastName))],
-			Sex:   Female,
-		}
 	}
-}
-
-// NewDog return new instance of person whose last name begins "inu".
-func NewDog() *Name {
-	mu.Lock()
-	defer mu.Unlock()
-
-	onceName.Do(loadNames)
 	return &Name{
-		First: names.FirstName.Animal[r.Intn(len(names.FirstName.Animal))],
-		Last:  names.LastNameDog[r.Intn(len(names.LastNameDog))],
-	}
-}
-
-// NewCat return new instance of person whose last name begins "neko".
-func NewCat() *Name {
-	mu.Lock()
-	defer mu.Unlock()
-
-	onceName.Do(loadNames)
-	return &Name{
-		First: names.FirstName.Animal[r.Intn(len(names.FirstName.Animal))],
-		Last:  names.LastNameCat[r.Intn(len(names.LastNameCat))],
-	}
-}
-
-// NewMale return new instance of person that is male.
-func NewMale() *Name {
-	mu.Lock()
-	defer mu.Unlock()
-
-	onceName.Do(loadNames)
-	return &Name{
-		First: names.FirstName.Male[r.Intn(len(names.FirstName.Male))],
-		Last:  names.LastName[r.Intn(len(names.LastName))],
-		Sex:   Male,
-	}
-}
-
-// NewFemale return new instance of person that is female.
-func NewFemale() *Name {
-	mu.Lock()
-	defer mu.Unlock()
-
-	onceName.Do(loadNames)
-	return &Name{
-		First: names.FirstName.Female[r.Intn(len(names.FirstName.Female))],
-		Last:  names.LastName[r.Intn(len(names.LastName))],
+		First: cloneItem(names.FirstName.Female[g.r.IntN(len(names.FirstName.Female))]),
+		Last:  cloneItem(names.LastName[g.r.IntN(len(names.LastName))]),
 		Sex:   Female,
 	}
 }
 
-// NewMaleDog return new instance of male person whose last name begins "inu".
-func NewMaleDog() *Name {
-	mu.Lock()
-	defer mu.Unlock()
+// NewDogName returns a new animal name whose last name begins "inu".
+func (g *Gimei) NewDogName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	onceName.Do(loadNames)
 	return &Name{
-		First: names.FirstName.Male[r.Intn(len(names.FirstName.Male))],
-		Last:  names.LastNameDog[r.Intn(len(names.LastNameDog))],
+		First: cloneItem(names.FirstName.Animal[g.r.IntN(len(names.FirstName.Animal))]),
+		Last:  cloneItem(names.LastNameDog[g.r.IntN(len(names.LastNameDog))]),
+	}
+}
+
+// NewCatName returns a new animal name whose last name begins "neko".
+func (g *Gimei) NewCatName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	onceName.Do(loadNames)
+	return &Name{
+		First: cloneItem(names.FirstName.Animal[g.r.IntN(len(names.FirstName.Animal))]),
+		Last:  cloneItem(names.LastNameCat[g.r.IntN(len(names.LastNameCat))]),
+	}
+}
+
+// NewMaleName returns a new male person.
+func (g *Gimei) NewMaleName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	onceName.Do(loadNames)
+	return &Name{
+		First: cloneItem(names.FirstName.Male[g.r.IntN(len(names.FirstName.Male))]),
+		Last:  cloneItem(names.LastName[g.r.IntN(len(names.LastName))]),
 		Sex:   Male,
 	}
 }
 
-// NewFemaleDog return new instance of female person whose last name begins "inu".
-func NewFemaleDog() *Name {
-	mu.Lock()
-	defer mu.Unlock()
+// NewFemaleName returns a new female person.
+func (g *Gimei) NewFemaleName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	onceName.Do(loadNames)
 	return &Name{
-		First: names.FirstName.Female[r.Intn(len(names.FirstName.Female))],
-		Last:  names.LastNameDog[r.Intn(len(names.LastNameDog))],
+		First: cloneItem(names.FirstName.Female[g.r.IntN(len(names.FirstName.Female))]),
+		Last:  cloneItem(names.LastName[g.r.IntN(len(names.LastName))]),
 		Sex:   Female,
 	}
 }
 
-// NewMaleCat return new instance of male person whose last name begins "neko".
-func NewMaleCat() *Name {
-	mu.Lock()
-	defer mu.Unlock()
+// NewMaleDogName returns a new male person whose last name begins "inu".
+func (g *Gimei) NewMaleDogName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	onceName.Do(loadNames)
 	return &Name{
-		First: names.FirstName.Male[r.Intn(len(names.FirstName.Male))],
-		Last:  names.LastNameCat[r.Intn(len(names.LastNameCat))],
+		First: cloneItem(names.FirstName.Male[g.r.IntN(len(names.FirstName.Male))]),
+		Last:  cloneItem(names.LastNameDog[g.r.IntN(len(names.LastNameDog))]),
 		Sex:   Male,
 	}
 }
 
-// NewFemaleCat return new instance of female person whose last name begins "neko".
-func NewFemaleCat() *Name {
-	mu.Lock()
-	defer mu.Unlock()
+// NewFemaleDogName returns a new female person whose last name begins "inu".
+func (g *Gimei) NewFemaleDogName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	onceName.Do(loadNames)
 	return &Name{
-		First: names.FirstName.Female[r.Intn(len(names.FirstName.Female))],
-		Last:  names.LastNameCat[r.Intn(len(names.LastNameCat))],
+		First: cloneItem(names.FirstName.Female[g.r.IntN(len(names.FirstName.Female))]),
+		Last:  cloneItem(names.LastNameDog[g.r.IntN(len(names.LastNameDog))]),
+		Sex:   Female,
+	}
+}
+
+// NewMaleCatName returns a new male person whose last name begins "neko".
+func (g *Gimei) NewMaleCatName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	onceName.Do(loadNames)
+	return &Name{
+		First: cloneItem(names.FirstName.Male[g.r.IntN(len(names.FirstName.Male))]),
+		Last:  cloneItem(names.LastNameCat[g.r.IntN(len(names.LastNameCat))]),
+		Sex:   Male,
+	}
+}
+
+// NewFemaleCatName returns a new female person whose last name begins "neko".
+func (g *Gimei) NewFemaleCatName() *Name {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	onceName.Do(loadNames)
+	return &Name{
+		First: cloneItem(names.FirstName.Female[g.r.IntN(len(names.FirstName.Female))]),
+		Last:  cloneItem(names.LastNameCat[g.r.IntN(len(names.LastNameCat))]),
 		Sex:   Female,
 	}
 }
@@ -337,10 +368,10 @@ func findNameByIndex(n string, i int) *Name {
 		return nil
 	}
 	if first, ok := maleFirstNameIndex[i][firstKey]; ok {
-		return &Name{First: first, Last: last, Sex: Male}
+		return &Name{First: cloneItem(first), Last: cloneItem(last), Sex: Male}
 	}
 	if first, ok := femaleFirstNameIndex[i][firstKey]; ok {
-		return &Name{First: first, Last: last, Sex: Female}
+		return &Name{First: cloneItem(first), Last: cloneItem(last), Sex: Female}
 	}
 	return nil
 }
@@ -397,7 +428,7 @@ func loadAddresses() {
 }
 
 func buildAddressIndex() {
-	for i := 0; i < 3; i++ {
+	for i := range 3 {
 		cityIndex[i] = make(map[string]Item, len(addresses.Addresses.City))
 		for _, item := range addresses.Addresses.City {
 			if _, ok := cityIndex[i][item[i]]; !ok {
@@ -442,40 +473,55 @@ func (a *Address) Katakana() string {
 	return a.Prefecture.Katakana() + a.City.Katakana() + a.Town.Katakana()
 }
 
-// NewAddress return new instance of address.
-func NewAddress() *Address {
+// NewAddress returns a new address.
+func (g *Gimei) NewAddress() *Address {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
 	return &Address{
-		Prefecture: NewPrefecture(),
-		City:       NewCity(),
-		Town:       NewTown(),
+		Prefecture: g.newPrefecture(),
+		City:       g.newCity(),
+		Town:       g.newTown(),
 	}
 }
 
-// NewPrefecture return new instance of prefecture.
-func NewPrefecture() Item {
-	mu.Lock()
-	defer mu.Unlock()
+// NewPrefecture returns a new prefecture.
+func (g *Gimei) NewPrefecture() Item {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	onceAddress.Do(loadAddresses)
-	return addresses.Addresses.Prefecture[r.Intn(len(addresses.Addresses.Prefecture))]
+	return g.newPrefecture()
 }
 
-// NewTown return new instance of town.
-func NewTown() Item {
-	mu.Lock()
-	defer mu.Unlock()
-
+func (g *Gimei) newPrefecture() Item {
 	onceAddress.Do(loadAddresses)
-	return addresses.Addresses.Town[r.Intn(len(addresses.Addresses.Town))]
+	return cloneItem(addresses.Addresses.Prefecture[g.r.IntN(len(addresses.Addresses.Prefecture))])
 }
 
-// NewCity return new instance of city.
-func NewCity() Item {
-	mu.Lock()
-	defer mu.Unlock()
+// NewTown returns a new town.
+func (g *Gimei) NewTown() Item {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
+	return g.newTown()
+}
+
+func (g *Gimei) newTown() Item {
 	onceAddress.Do(loadAddresses)
-	return addresses.Addresses.City[r.Intn(len(addresses.Addresses.City))]
+	return cloneItem(addresses.Addresses.Town[g.r.IntN(len(addresses.Addresses.Town))])
+}
+
+// NewCity returns a new city.
+func (g *Gimei) NewCity() Item {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	return g.newCity()
+}
+
+func (g *Gimei) newCity() Item {
+	onceAddress.Do(loadAddresses)
+	return cloneItem(addresses.Addresses.City[g.r.IntN(len(addresses.Addresses.City))])
 }
 
 func findAddressByIndex(a string, i int) *Address {
@@ -496,9 +542,9 @@ func findAddressByIndex(a string, i int) *Address {
 				continue
 			}
 			return &Address{
-				Prefecture: prefecture,
-				City:       city,
-				Town:       town,
+				Prefecture: cloneItem(prefecture),
+				City:       cloneItem(city),
+				Town:       cloneItem(town),
 			}
 		}
 	}
@@ -535,14 +581,14 @@ func (p *PostalCode) Kanji() string {
 	return p.Code.Kanji()
 }
 
-// NewPostalCode return new instance of postal code.
-func NewPostalCode() *PostalCode {
-	mu.Lock()
-	defer mu.Unlock()
+// NewPostalCode returns a new postal code.
+func (g *Gimei) NewPostalCode() *PostalCode {
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
 	oncePostal.Do(loadPostalCodes)
 	return &PostalCode{
-		Code: postalCodes.PostalCodes[r.Intn(len(postalCodes.PostalCodes))],
+		Code: cloneItem(postalCodes.PostalCodes[g.r.IntN(len(postalCodes.PostalCodes))]),
 	}
 }
 

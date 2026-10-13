@@ -188,6 +188,7 @@ func main() {
 		fmt.Println(gimei.CountData())
 		os.Exit(0)
 	}
+	generator := gimei.NewWithSeed(0)
 
 	args := flag.Args()
 	if len(args) == 0 {
@@ -217,43 +218,43 @@ func main() {
 				switch tokens[0] {
 				case "name":
 					if gimeiName == nil {
-						gimeiName = gimei.NewName()
+						gimeiName = generator.NewName()
 					}
 					result = doName(gimeiName, tokens[1])
 					fieldName = "name"
 				case "male":
 					if gimeiMale == nil {
-						gimeiMale = gimei.NewMale()
+						gimeiMale = generator.NewMaleName()
 					}
 					result = doName(gimeiMale, tokens[1])
 					fieldName = "male"
 				case "female":
 					if gimeiFemale == nil {
-						gimeiFemale = gimei.NewFemale()
+						gimeiFemale = generator.NewFemaleName()
 					}
 					result = doName(gimeiFemale, tokens[1])
 					fieldName = "female"
 				case "address":
 					if gimeiAddress == nil {
-						gimeiAddress = gimei.NewAddress()
+						gimeiAddress = generator.NewAddress()
 					}
 					result = doAddress(gimeiAddress, tokens[1])
 					fieldName = "address"
 				case "postal":
 					if gimeiPostalCode == nil {
-						gimeiPostalCode = gimei.NewPostalCode()
+						gimeiPostalCode = generator.NewPostalCode()
 					}
 					result = doPostalCode(gimeiPostalCode, tokens[1])
 					fieldName = "postal"
 				case "dog":
 					if gimeiDog == nil {
-						gimeiDog = gimei.NewDog()
+						gimeiDog = generator.NewDogName()
 					}
 					result = doName(gimeiDog, tokens[1])
 					fieldName = "dog"
 				case "cat":
 					if gimeiCat == nil {
-						gimeiCat = gimei.NewCat()
+						gimeiCat = generator.NewCatName()
 					}
 					result = doName(gimeiCat, tokens[1])
 					fieldName = "cat"
@@ -291,37 +292,37 @@ func main() {
 				switch tokens[0] {
 				case "name":
 					if gimeiName == nil {
-						gimeiName = gimei.NewName()
+						gimeiName = generator.NewName()
 					}
 					result = doName(gimeiName, tokens[1])
 				case "male":
 					if gimeiMale == nil {
-						gimeiMale = gimei.NewMale()
+						gimeiMale = generator.NewMaleName()
 					}
 					result = doName(gimeiMale, tokens[1])
 				case "female":
 					if gimeiFemale == nil {
-						gimeiFemale = gimei.NewFemale()
+						gimeiFemale = generator.NewFemaleName()
 					}
 					result = doName(gimeiFemale, tokens[1])
 				case "address":
 					if gimeiAddress == nil {
-						gimeiAddress = gimei.NewAddress()
+						gimeiAddress = generator.NewAddress()
 					}
 					result = doAddress(gimeiAddress, tokens[1])
 				case "postal":
 					if gimeiPostalCode == nil {
-						gimeiPostalCode = gimei.NewPostalCode()
+						gimeiPostalCode = generator.NewPostalCode()
 					}
 					result = doPostalCode(gimeiPostalCode, tokens[1])
 				case "dog":
 					if gimeiDog == nil {
-						gimeiDog = gimei.NewDog()
+						gimeiDog = generator.NewDogName()
 					}
 					result = doName(gimeiDog, tokens[1])
 				case "cat":
 					if gimeiCat == nil {
-						gimeiCat = gimei.NewCat()
+						gimeiCat = generator.NewCatName()
 					}
 					result = doName(gimeiCat, tokens[1])
 				default:

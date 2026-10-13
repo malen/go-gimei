@@ -1,4 +1,5 @@
 name: test
+
 on:
   push:
     branches:
@@ -8,20 +9,25 @@ on:
       - master
 jobs:
   test:
+    permissions:
+      contents: read
     strategy:
       matrix:
         os: [windows-latest, macos-latest, ubuntu-latest]
-        go: ["1.23", "1.24", "1.25"]
+        go: ["1.27"]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-go@v3
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go }}
+          cache-dependency-path: go.sum
 
       - run: go generate ./...
-      - run: git diff --cached --exit-code
+      - run: git diff --exit-code
       - run: go test ./... -v -cover -coverprofile coverage.out
       - run: go test -bench . -benchmem
 
-      - uses: codecov/codecov-action@v3
+      - uses: codecov/codecov-action@v7
+        with:
+          files: ./coverage.out

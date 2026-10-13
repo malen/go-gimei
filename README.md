@@ -25,7 +25,9 @@ import (
 )
 
 func main() {
-	name := gimei.NewName()
+	g := gimei.NewWithSeed(0)
+
+	name := g.NewName()
 	fmt.Println(name)                  // 斎藤 陽菜
 	fmt.Println(name.Kanji())          // 斎藤 陽菜
 	fmt.Println(name.Hiragana())       // さいとう はるな
@@ -42,12 +44,12 @@ func main() {
 	fmt.Println(name.Sex)              // 女
 	fmt.Println(name.IsMale())         // false
 
-	male := gimei.NewMale()
+	male := g.NewMaleName()
 	fmt.Println(male)            // 小林 顕士
 	fmt.Println(male.IsMale())   // true
 	fmt.Println(male.IsFemale()) // false
 
-	address := gimei.NewAddress()
+	address := g.NewAddress()
 	fmt.Println(address)                       // 岡山県大島郡大和村稲木町
 	fmt.Println(address.Kanji())               // 岡山県大島郡大和村稲木町
 	fmt.Println(address.Hiragana())            // おかやまけんおおしまぐんやまとそんいなぎちょう
@@ -65,7 +67,7 @@ func main() {
 	fmt.Println(address.Town.Hiragana())       // いなぎちょう
 	fmt.Println(address.Town.Katakana())       // イナギチョウ
 
-	prefecture := gimei.NewPrefecture()
+	prefecture := g.NewPrefecture()
 	fmt.Println(prefecture) // 青森県
 }
 ```
@@ -76,15 +78,27 @@ go-gimei supports seeding of its pseudo-random number generator to provide
 deterministic output of repeated method calls.
 
 ```go
-import "math/rand"
+first := gimei.NewWithSeed(42)
+fmt.Println(first.NewName())
+fmt.Println(first.NewAddress())
 
-gimei.SetRandom(rand.New(rand.NewSource(42)))
-fmt.Println(gimei.NewName())    // 前川 永麻
-fmt.Println(gimei.NewAddress()) // 佐賀県斜里郡斜里町浄法寺町樋口
+second := gimei.NewWithSeed(42)
+fmt.Println(second.NewName())    // same as first.NewName()
+fmt.Println(second.NewAddress()) // same as first.NewAddress()
+```
 
-gimei.SetRandom(rand.New(rand.NewSource(42)))
-fmt.Println(gimei.NewName())    // 前川 永麻
-fmt.Println(gimei.NewAddress()) // 佐賀県斜里郡斜里町浄法寺町樋口
+`NewWithSeed` uses `rand.NewPCG(seed, seed)`, the same convention as
+[gofakeit](https://github.com/brianvoe/gofakeit). A zero seed creates a
+cryptographically seeded generator. Each `Gimei` is safe for concurrent use.
+
+To supply a custom `math/rand/v2` generator, use `New`. The generator must be
+owned exclusively by the returned `Gimei`:
+
+```go
+import "math/rand/v2"
+
+g := gimei.New(rand.New(rand.NewPCG(1, 2)))
+fmt.Println(g.NewName())
 
 ```
 

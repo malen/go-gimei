@@ -2,45 +2,73 @@ package gimei_test
 
 import (
 	"fmt"
-	"math/rand"
+	"math/rand/v2"
 	"testing"
 
 	"github.com/mattn/go-gimei"
 )
 
 func TestDeterministicRandom(t *testing.T) {
-	gimei.SetRandom(rand.New(rand.NewSource(42)))
-	prev := collectNewResults()
+	prev := collectNewResults(gimei.NewWithSeed(42))
+	curr := collectNewResults(gimei.NewWithSeed(42))
 
-	gimei.SetRandom(rand.New(rand.NewSource(42)))
-	curr := collectNewResults()
-
-	// expect same result
-	for i := 0; i < len(curr); i++ {
+	for i := range curr {
 		if prev[i].String() != curr[i].String() {
 			t.Errorf("curr[%d] == %q, want %q", i, curr[i], prev[i])
 		}
 	}
 }
 
+func TestNewWithSeedUsesGofakeitPCGConvention(t *testing.T) {
+	const seed = uint64(42)
+	want := collectNewResults(gimei.New(rand.New(rand.NewPCG(seed, seed))))
+	got := collectNewResults(gimei.NewWithSeed(seed))
+
+	for i := range got {
+		if got[i].String() != want[i].String() {
+			t.Errorf("got[%d] == %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
+func TestNewRejectsNilRandom(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Fatal("New(nil) did not panic")
+		}
+	}()
+	gimei.New(nil)
+}
+
+func TestGeneratedItemsDoNotAliasSharedData(t *testing.T) {
+	const seed = uint64(42)
+	name := gimei.NewWithSeed(seed).NewName()
+	want := name.Kanji()
+	name.First[0] = "modified"
+
+	if got := gimei.NewWithSeed(seed).NewName().Kanji(); got != want {
+		t.Fatalf("generated item changed shared data: got %q, want %q", got, want)
+	}
+}
+
 // returns slice of fmt.Stringer which return value of gimei 'New' functions
-func collectNewResults() []fmt.Stringer {
+func collectNewResults(g *gimei.Gimei) []fmt.Stringer {
 	var s []fmt.Stringer
 
-	s = append(s, gimei.NewName())
-	s = append(s, gimei.NewMale())
-	s = append(s, gimei.NewFemale())
-	s = append(s, gimei.NewAddress())
-	s = append(s, gimei.NewPrefecture())
-	s = append(s, gimei.NewCity())
-	s = append(s, gimei.NewTown())
+	s = append(s, g.NewName())
+	s = append(s, g.NewMaleName())
+	s = append(s, g.NewFemaleName())
+	s = append(s, g.NewAddress())
+	s = append(s, g.NewPrefecture())
+	s = append(s, g.NewCity())
+	s = append(s, g.NewTown())
 
 	return s
 }
 
 func TestFindName(t *testing.T) {
 	var target string
-	name := gimei.NewName()
+	name := gimei.NewWithSeed(1).NewName()
 
 	target = name.Kanji()
 	if gimei.FindNameByKanji(target) == nil {
@@ -70,7 +98,7 @@ func TestFindNameInvalidParams(t *testing.T) {
 
 func TestFindAddress(t *testing.T) {
 	var target string
-	addr := gimei.NewAddress()
+	addr := gimei.NewWithSeed(1).NewAddress()
 
 	target = addr.Kanji()
 	if gimei.FindAddressByKanji(target) == nil {
@@ -88,35 +116,37 @@ func TestFindAddress(t *testing.T) {
 
 // Prefecture/City/Town.Romaji() should return empty string
 func TestEmptyRomaji(t *testing.T) {
-	if gimei.NewPrefecture().Romaji() != "" {
+	g := gimei.NewWithSeed(1)
+	if g.NewPrefecture().Romaji() != "" {
 		t.Errorf("Prefecture.Romaji() should return empty string")
 	}
-	if gimei.NewCity().Romaji() != "" {
+	if g.NewCity().Romaji() != "" {
 		t.Errorf("City.Romaji() should return empty string")
 	}
-	if gimei.NewTown().Romaji() != "" {
+	if g.NewTown().Romaji() != "" {
 		t.Errorf("Town.Romaji() should return empty string")
 	}
 }
 
 func TestCheckRaceCondition(t *testing.T) {
-	for i := 0; i < 3; i++ {
+	g := gimei.NewWithSeed(1)
+	for i := range 3 {
 		t.Run(fmt.Sprintf("TestCheckRaceCondition: %v", i), func(t *testing.T) {
 			t.Parallel()
-			gimei.NewName()
-			gimei.NewDog()
-			gimei.NewCat()
-			gimei.NewMale()
-			gimei.NewFemale()
-			gimei.NewMaleDog()
-			gimei.NewFemaleDog()
-			gimei.NewMaleCat()
-			gimei.NewFemaleCat()
-			gimei.NewAddress()
-			gimei.NewPrefecture()
-			gimei.NewTown()
-			gimei.NewCity()
-			gimei.NewPostalCode()
+			g.NewName()
+			g.NewDogName()
+			g.NewCatName()
+			g.NewMaleName()
+			g.NewFemaleName()
+			g.NewMaleDogName()
+			g.NewFemaleDogName()
+			g.NewMaleCatName()
+			g.NewFemaleCatName()
+			g.NewAddress()
+			g.NewPrefecture()
+			g.NewTown()
+			g.NewCity()
+			g.NewPostalCode()
 			gimei.FindNameByKanji("小林 顕士")
 			gimei.FindAddressByKanji("岡山県大島郡大和村稲木町")
 			gimei.CountData()
@@ -125,9 +155,7 @@ func TestCheckRaceCondition(t *testing.T) {
 }
 
 func TestPostalCode(t *testing.T) {
-	gimei.SetRandom(rand.New(rand.NewSource(42)))
-
-	postal := gimei.NewPostalCode()
+	postal := gimei.NewWithSeed(42).NewPostalCode()
 	if postal == nil {
 		t.Fatal("NewPostalCode should not return nil")
 	}
