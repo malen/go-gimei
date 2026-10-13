@@ -1,0 +1,84 @@
+[tools]
+go = "1.27"
+
+[tasks.default]
+description = "Clean and build the CLI"
+run = [
+  { task = "clean" },
+  { task = "build" },
+]
+
+[tasks.build]
+description = "Build the gimei CLI"
+run = '''
+revision="$(git rev-parse --short HEAD)"
+go build -ldflags="-s -w -X main.revision=${revision}" ./cmd/gimei
+'''
+
+[tasks.install]
+description = "Install the gimei CLI"
+run = '''
+revision="$(git rev-parse --short HEAD)"
+go install -ldflags="-s -w -X main.revision=${revision}" ./cmd/gimei
+'''
+
+[tasks.show-version]
+description = "Show the CLI version"
+tools."go:github.com/x-motemen/gobump/cmd/gobump" = "latest"
+run = "gobump show -r ./cmd/gimei"
+
+[tasks.cross]
+description = "Cross-compile release archives"
+tools."go:github.com/x-motemen/gobump/cmd/gobump" = "latest"
+tools."go:github.com/Songmu/goxz/cmd/goxz" = "latest"
+run = '''
+version="$(gobump show -r ./cmd/gimei)"
+revision="$(git rev-parse --short HEAD)"
+goxz -n gimei -pv="v${version}" -build-ldflags="-s -w -X main.revision=${revision}" ./cmd/gimei
+'''
+
+[tasks.test]
+description = "Build and run all tests"
+depends = ["build"]
+run = "go test -v ./..."
+
+[tasks.clean]
+description = "Remove generated build artifacts"
+run = '''
+rm -f gimei gimei.exe
+rm -rf goxz
+go clean
+'''
+
+[tasks.bump]
+description = "Bump the version, commit, tag, and push it"
+confirm = "Bump and publish a new version?"
+tools."go:github.com/x-motemen/gobump/cmd/gobump" = "latest"
+run = '''
+if [ -n "$(git status --porcelain)" ]; then
+  echo "git workspace is dirty" >&2
+  exit 1
+fi
+
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "${branch}" != "master" ]; then
+  echo "current branch is not master" >&2
+  exit 1
+fi
+
+gobump up -w ./cmd/gimei
+version="$(gobump show -r ./cmd/gimei)"
+git commit -am "bump up version to ${version}"
+git tag "v${version}"
+git push origin master
+git push origin "refs/tags/v${version}"
+'''
+
+[tasks.upload]
+description = "Upload cross-compiled archives to the matching GitHub release"
+tools."go:github.com/x-motemen/gobump/cmd/gobump" = "latest"
+tools."go:github.com/tcnksm/ghr" = "latest"
+run = '''
+version="$(gobump show -r ./cmd/gimei)"
+ghr "v${version}" goxz
+'''

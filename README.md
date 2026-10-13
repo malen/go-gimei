@@ -1,9 +1,9 @@
 # go-gimei
 
-[![Build Status](https://github.com/mattn/go-gimei/workflows/test/badge.svg?branch=master)](https://github.com/mattn/go-gimei/actions?query=workflow%3Atest)
-[![Codecov](https://codecov.io/gh/mattn/go-gimei/branch/master/graph/badge.svg)](https://codecov.io/gh/mattn/go-gimei)
-[![GoDoc](https://godoc.org/github.com/mattn/go-gimei?status.svg)](http://godoc.org/github.com/mattn/go-gimei)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mattn/go-gimei)](https://goreportcard.com/report/github.com/mattn/go-gimei)
+[![Build Status](https://github.com/malen/go-gimei/workflows/test/badge.svg?branch=master)](https://github.com/malen/go-gimei/actions?query=workflow%3Atest)
+[![Codecov](https://codecov.io/gh/malen/go-gimei/branch/master/graph/badge.svg)](https://codecov.io/gh/malen/go-gimei)
+[![GoDoc](https://godoc.org/github.com/malen/go-gimei?status.svg)](http://godoc.org/github.com/malen/go-gimei)
+[![Go Report Card](https://goreportcard.com/badge/github.com/malen/go-gimei)](https://goreportcard.com/report/github.com/malen/go-gimei)
 
 This project is a golang port of Ruby's [gimei](https://github.com/willnet/gimei).  Import
 as library or use as CLI.
@@ -13,6 +13,26 @@ furigana phonetic renderings of kanji.
 
 The project name comes from Japanese '偽名' means a false name. 
 
+## About This Fork
+
+This repository is forked from
+[github.com/mattn/go-gimei](https://github.com/mattn/go-gimei).
+
+The main changes in this fork are:
+
+- Changed the module path to `github.com/malen/go-gimei`.
+- Replaced the package-level random generator API with an instance-based
+  `Gimei` API. This is a breaking change: generation functions such as
+  `NewName` and `NewAddress` are now methods on `*Gimei`.
+- Migrated to `math/rand/v2` with deterministic PCG seeding compatible with
+  gofakeit, while seed zero uses a cryptographically generated seed.
+- Made each `Gimei` instance safe for concurrent use and prevented generated
+  items from mutating shared embedded data.
+- Improved name and address lookup performance by building indexes when the
+  embedded data is loaded.
+- Updated dependencies, tests, and CI configuration for the current Go
+  toolchain.
+
 ## Usage
 
 ```go
@@ -21,7 +41,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/mattn/go-gimei"
+	"github.com/malen/go-gimei"
 )
 
 func main() {
@@ -196,13 +216,13 @@ $ gimei -n 3 name name:hiragana
 
 ## Requirements
 
-golang
+[mise](https://mise.jdx.dev/)
 
 ## Installation
 
 Install the library.
 ```
-$ go get github.com/mattn/go-gimei
+$ go get github.com/malen/go-gimei
 ```
 
 ### CLI installation
@@ -210,15 +230,22 @@ $ go get github.com/mattn/go-gimei
 On Go version 1.16 or later, this command works:
 
 ```bash
-$ go install github.com/mattn/go-gimei/cmd/gimei@latest
+$ go install github.com/malen/go-gimei/cmd/gimei@latest
 ```
 
-## Running Tests
+## Development
 
-To run all the tests, do:
+Install the project toolchain and run all tests with mise:
 
 ```bash
-$ go test
+$ mise install
+$ mise run test
+```
+
+List all available tasks with:
+
+```bash
+$ mise tasks ls
 ```
 
 ## License
@@ -227,6 +254,7 @@ MIT
 
 Dictionary YAML file is generated from [naist-jdic](https://ja.osdn.net/projects/naist-jdic/).
 
-## Author
+## Authors
 
-Yasuhiro Matsumoto (a.k.a mattn)
+- Original project: Yasuhiro Matsumoto (a.k.a. mattn)
+- Fork maintainer: malen

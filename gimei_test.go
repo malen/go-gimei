@@ -5,7 +5,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	"github.com/mattn/go-gimei"
+	"github.com/malen/go-gimei"
 )
 
 func TestDeterministicRandom(t *testing.T) {

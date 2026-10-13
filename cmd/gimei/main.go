@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/mattn/go-gimei"
+	"github.com/malen/go-gimei"
 )
 
 func doName(name *gimei.Name, arg string) string {
