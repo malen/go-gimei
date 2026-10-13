@@ -97,7 +97,7 @@ func doPostalCode(postalCode *gimei.PostalCode, arg string) string {
 
 const (
 	name    = "gimei"
-	version = "0.0.5"
+	version = "1.0.0"
 )
 
 var revision = "HEAD"
